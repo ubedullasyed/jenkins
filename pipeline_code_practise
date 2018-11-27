@@ -1,0 +1,30 @@
+node {
+    def mvnHome = tool name: 'maven-3', type: 'maven'
+    def mvn = "${mvnHome}/bin/mvn"
+        def tomcatUsr = 'ec2-user'
+    stage('git checkout'){
+    properties([parameters([booleanParam(defaultValue: false, description: 'SIT build', name: 'SIT')])])
+    git credentialsId: 'github', 
+    url: 'https://ubedullasyed@bitbucket.org/ubedullasyed/my-app.git'
+    }
+    stage('build'){
+        sh "${mvn} clean package"
+    }
+    stage ('deploy-to-dev'){
+        sh 'mv target/myweb*.war target/myweb.war'
+        sshagent(['tomcat']) {
+            sh "ssh -o StrictHostKeyChecking=no ${tomcatUsr}@172.31.91.102 /opt/tomcat8/bin/shutdown.sh"
+            sh "ssh ${tomcatUsr}@172.31.91.102 rm -rf /opt/tomcat8/webapps/myweb*"
+            sh "scp target/myweb.war ${tomcatUsr}@172.31.91.102:/opt/tomcat8/webapps"
+        sh "ssh ${tomcatUsr}@172.31.91.102 /opt/tomcat8/bin/startup.sh"
+   
+}
+    }
+    stage('slack notification'){
+        slackSend baseUrl: 'https://hooks.slack.com/services/TE6TK64ES/', channel: '#pipeline_project', color: 'good', message: 'jenkins pipeline build', teamDomain: 'ubedullasyed', tokenCredentialId: 'slack pipeline'
+    }
+    stage('email notification'){
+        mail bcc: '', body: 'build done', cc: '', from: '', replyTo: '', subject: 'build done', to: 'ubedulladevops@gmail.com'
+    }
+        
+    }
